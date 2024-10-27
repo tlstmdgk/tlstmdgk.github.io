@@ -7,14 +7,17 @@ Event driven infrastructure provides the developer with AWS resources and hostin
 There were a few ways to achieve connection between a user and an S3 bucket. But in general, a frontend will hold access to an API endpoint that connects it to the server. After sending a request through the API, a Lambda function will capture it and run some code based on the event and context. 
 
 A popular method online involved "pre-signed" urls, where the lambda function would call for a signed url to the S3 bucket, allowing for quick and direct file transfers later on. However, we opted to not use the urls, mostly because we thought it was doable by sending JSON dumps. 
+
 ![The connection between API and Lambda](./lambdagateway.png)
 ![Valid API requests](./routes.png)
 
 We first experienced what appeared to be network errors, as the front-end for testing was jank. We frequently used the inspector tool to view what statuses were occuring (403, 500, 200) for every request. An imported library "axios" wasn't able to fetch from the server, but we later realized it was all server-side errors. The Cross-Origin Resource Sharing (CORS) configuration was not applying correctly, but this was due to bad architecture: The Lambda function was expecting an event from the S3 buckets changing, when we wanted it to trigger on GET/POST requests. 
+
 ![The inspector showing a failed POST request](./inspector.png)
 ![What was attempted to upload](./payload.png)
 
 Once we changed how the requests were routed, we attempted to test with Postman (a simple website that allows users to easily build and test API). Basically, you put in the gateway API url and the key ("/receipts"), the type of request you want to send, and send it. Here is an example of a POST request being approved:
+
 ![A Screenshot of Postman UI](./post.png)
 
 (Body is null because there was no image being sent through this)

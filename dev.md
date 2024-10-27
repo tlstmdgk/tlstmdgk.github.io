@@ -59,3 +59,209 @@ resource "aws_apigatewayv2_api" "lambda" {
 
 
 ### TLDR: Came here for fun, accidentally ended up learning AWS
+
+```
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+
+  required_version = ">= 1.2.0"
+}
+
+provider "aws" {
+  region = "us-west-2"
+}
+
+# S3 bucket
+resource "aws_s3_bucket" "receipt_storage" {
+  bucket = "receipt-storage-${var.environment}"
+}
+
+# versioning on the bucket
+resource "aws_s3_bucket_versioning" "receipt_storage_versioning" {
+  bucket = aws_s3_bucket.receipt_storage.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# encryption for the bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "receipt_storage_encryption" {
+  bucket = aws_s3_bucket.receipt_storage.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# DynamoDB table for metadata
+resource "aws_dynamodb_table" "receipt_metadata" {
+  name           = "receipt-metadata-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "receipt_id"
+  
+  attribute {
+    name = "receipt_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "UserIdIndex"
+    hash_key           = "user_id"
+    projection_type    = "ALL"
+  }
+}
+
+# lambda 
+resource "aws_lambda_function" "receipt_processor" {
+  filename         = "receipt_processor.zip"
+  function_name    = "receipt-processor-${var.environment}"
+  role            = aws_iam_role.lambda_role.arn
+  handler         = "index.handler"
+  runtime         = "python3.9"
+
+  environment {
+    variables = {
+      RECEIPT_BUCKET = aws_s3_bucket.receipt_storage.id
+      METADATA_TABLE = aws_dynamodb_table.receipt_metadata.id
+    }
+  }
+}
+
+# API Gateway
+resource "aws_apigatewayv2_api" "receipt_api" {
+  
+  name          = "receipt-api-${var.environment}"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_headers = ["*"]
+    allow_methods = ["POST", "GET", "OPTIONS"]
+    allow_origins = ["*"]  
+    max_age      = 300
+  }
+}
+
+resource "aws_apigatewayv2_stage" "receipt_api" {
+  api_id = aws_apigatewayv2_api.receipt_api.id
+  name   = "$default"
+  auto_deploy = true
+}
+
+resource "aws_apigatewayv2_integration" "receipt_api" {
+  api_id           = aws_apigatewayv2_api.receipt_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.receipt_processor.invoke_arn
+  integration_method = "POST"
+}
+
+# IAM role for Lambda
+resource "aws_iam_role" "lambda_role" {
+  name = "receipt-processor-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM policy for Lambda to access S3 and DynamoDB
+resource "aws_iam_role_policy" "lambda_policy" {
+  name = "receipt-processor-policy"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.receipt_storage.arn,
+          "${aws_s3_bucket.receipt_storage.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.receipt_metadata.arn,
+          "${aws_dynamodb_table.receipt_metadata.arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "textract:AnalyzeDocument"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+
+
+# Add routes for the API
+resource "aws_apigatewayv2_route" "upload_route" {
+  api_id    = aws_apigatewayv2_api.receipt_api.id
+  route_key = "POST /receipts"
+  target    = "integrations/${aws_apigatewayv2_integration.receipt_api.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_route" {
+  api_id    = aws_apigatewayv2_api.receipt_api.id
+  route_key = "GET /receipts"
+  target    = "integrations/${aws_apigatewayv2_integration.receipt_api.id}"
+}
+
+
+# Variables
+variable "environment" {
+  description = "Environment name (e.g., dev, prod)"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "us-west-2"
+  type        = string
+}
+
+# Outputs
+output "api_endpoint" {
+  value = aws_apigatewayv2_api.receipt_api.api_endpoint
+}
+
+output "bucket_name" {
+  value = aws_s3_bucket.receipt_storage.id
+}
+
+
+
+```

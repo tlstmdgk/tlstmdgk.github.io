@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My GitHub Pages Site</title>
+    <!-- Include marked.js for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        #content {
+            padding: 20px;
+        }
+
+        /* Basic styling for markdown content */
+        #markdown-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        #markdown-content h1 { font-size: 2em; margin-top: 1em; }
+        #markdown-content h2 { font-size: 1.5em; margin-top: 0.8em; }
+        #markdown-content pre { 
+            background-color: #f6f8fa; 
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        #markdown-content code {
+            background-color: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+        }
+        #markdown-content img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="content">
+        <div id="markdown-content">
+            <!-- Markdown content will be loaded here -->
+            Loading...
+        </div>
+    </div>
+
+    <script>
+        // Function to fetch and render markdown content
+        async function loadMarkdown() {
+            try {
+                // Replace 'your-markdown-file.md' with the path to your .md file
+                const response = await fetch('./dev.md');
+                const text = await response.text();
+                
+                // Convert markdown to HTML and inject into the page
+                document.getElementById('markdown-content').innerHTML = marked.parse(text);
+            } catch (error) {
+                document.getElementById('markdown-content').innerHTML = 
+                    'Error loading markdown content. Make sure your .md file is in the correct location.';
+                console.error('Error loading markdown:', error);
+            }
+        }
+
+        // Load markdown when page loads
+        window.addEventListener('load', loadMarkdown);
+    </script>
+</body>
+</html>

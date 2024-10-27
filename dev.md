@@ -8,6 +8,7 @@ There were a few ways to achieve connection between a user and an S3 bucket. But
 
 A popular method online involved "pre-signed" urls, where the lambda function would call for a signed url to the S3 bucket, allowing for quick and direct file transfers later on. However, we opted to not use the urls, mostly because we thought it was doable by sending JSON dumps. 
 &nbsp;
+![a](./upload2.png)
 
 ![The connection between API and Lambda](./lambdagateway.png)
 ![Valid API requests](./routes.png)
